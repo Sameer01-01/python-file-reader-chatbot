@@ -7,11 +7,13 @@ import pandas as pd
 from PIL import Image
 import pytesseract
 import os
+from docx import Document  
 
 app = Flask(__name__)
 CORS(app)
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'  # Windows path example
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
 
 GEMINI_API_KEY = "AIzaSyDm2ODVscz6kNEsHPo4yWlyyRMiGXWFLQA"
 genai.configure(api_key=GEMINI_API_KEY)
@@ -19,7 +21,6 @@ model = genai.GenerativeModel('gemini-2.0-flash')
 
 def extract_text_from_file(file_stream, filename):
     try:
-        
         ext = os.path.splitext(filename)[1].lower()
         
         if ext == '.pdf':
@@ -36,6 +37,10 @@ def extract_text_from_file(file_stream, filename):
         
         elif ext == '.txt':
             return file_stream.read().decode('utf-8')
+        
+        elif ext == '.docx':
+            doc = Document(file_stream)
+            return '\n'.join([paragraph.text for paragraph in doc.paragraphs])
         
         else:
             return "Unsupported file format"
@@ -55,23 +60,22 @@ def ask_question():
         return jsonify({"error": "No question provided"}), 400
     
     try:
-       
         filename = file.filename
-   
         file_content = file.read()
-       
         file_stream = io.BytesIO(file_content)
         
         text = extract_text_from_file(file_stream, filename)
         if not text:
             return jsonify({"error": "Could not extract text from file"}), 400
         
-        prompt = f"""Use this document content to answer. If answer isn't in document, say so.
+        prompt = f"""Analyze this document and answer the question. If the answer cannot be found in the document, 
+        clearly state that the information is not available in the provided document.
         
-        DOCUMENT:
+        DOCUMENT CONTENT:
         {text}
         
         QUESTION: {question}
+        
         ANSWER:"""
         
         response = model.generate_content(prompt)
